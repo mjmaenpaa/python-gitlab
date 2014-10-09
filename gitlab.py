@@ -148,8 +148,9 @@ class Gitlab(object):
         if not self.email or not self.password:
             raise GitlabAuthenticationError("Missing email/password")
 
-        r = self.rawPost('/session',
-                         {'email': self.email, 'password': self.password})
+        data = json.dumps({'email': self.email, 'password': self.password})
+        r = self.rawPost('/session', data, content_type='application/json')
+
         if r.status_code == 201:
             self.user = CurrentUser(self, r.json())
         else:
