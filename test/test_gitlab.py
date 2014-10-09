@@ -460,33 +460,6 @@ class TestGitLab(TestCase):
         self.assertEqual(self.gl.user.id, id_)
         self.assertEqual(type(self.gl.user), CurrentUser)
 
-    def test_getListOrObject_without_id(self):
-        @urlmatch(scheme="http", netloc="localhost", path="/api/v3/projects",
-                  method="get")
-        def resp_cont(url, request):
-            headers = {'content-type': 'application/json'}
-            content = '[{"name": "testproject", "id": 1}]'.encode("utf-8")
-            return response(200, content, headers, None, 5, request)
-
-        with HTTMock(resp_cont):
-            projs = self.gl._getListOrObject(Project, None)
-            self.assertEqual(len(projs), 1)
-            proj = projs[0]
-            self.assertEqual(proj.id, 1)
-            self.assertEqual(proj.name, "testproject")
-
-    def test_getListOrObject_with_id(self):
-        @urlmatch(scheme="http", netloc="localhost", path="/api/v3/projects/1",
-                  method="get")
-        def resp_cont(url, request):
-            headers = {'content-type': 'application/json'}
-            content = '{"name": "testproject", "id": 1}'.encode("utf-8")
-            return response(200, content, headers, None, 5, request)
-
-        with HTTMock(resp_cont):
-            proj = self.gl._getListOrObject(Project, 1)
-            self.assertEqual(proj.id, 1)
-            self.assertEqual(proj.name, "testproject")
 
     def test_Hook(self):
         @urlmatch(scheme="http", netloc="localhost", path="/api/v3/hooks/1",

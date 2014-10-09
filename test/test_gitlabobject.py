@@ -148,8 +148,7 @@ class TestGitLabObject(TestCase):
 
     def test_getListOrObject_with_list(self):
         with HTTMock(resp_list_project):
-            gl_object = Project(self.gl, data={"name": "name"})
-            data = gl_object._getListOrObject(Project, id=None)
+            data = Project._getListOrObject(self.gl, id=None)
             self.assertEqual(type(data), list)
             self.assertEqual(len(data), 1)
             self.assertEqual(type(data[0]), Project)
@@ -158,32 +157,29 @@ class TestGitLabObject(TestCase):
 
     def test_getListOrObject_with_get(self):
         with HTTMock(resp_get_project):
-            gl_object = Project(self.gl, data={"name": "name"})
-            data = gl_object._getListOrObject(Project, id=1)
+            data = Project._getListOrObject(self.gl, id=1)
             self.assertEqual(type(data), Project)
             self.assertEqual(data.name, "name")
             self.assertEqual(data.id, 1)
 
     def test_getListOrObject_cant_get(self):
         with HTTMock(resp_get_issue):
-            gl_object = Project(self.gl, data={"name": "name"})
-            self.assertRaises(NotImplementedError, gl_object._getListOrObject,
-                              Issue, id=1)
+            self.assertRaises(NotImplementedError, Issue._getListOrObject,
+                              self.gl, id=1)
 
     def test_getListOrObject_cantlist(self):
         gl_object = Project(self.gl, data={"name": "name"})
-        self.assertRaises(NotImplementedError, gl_object._getListOrObject,
-                          CurrentUser, id=None)
+        self.assertRaises(NotImplementedError, CurrentUser._getListOrObject,
+                          self.gl, id=None)
 
     def test_getListOrObject_cantcreate(self):
         gl_object = Project(self.gl, data={"name": "name"})
-        self.assertRaises(NotImplementedError, gl_object._getListOrObject,
-                          CurrentUser, id={})
+        self.assertRaises(NotImplementedError, CurrentUser._getListOrObject,
+                          self.gl, id={})
 
     def test_getListOrObject_create(self):
         data = {"name": "name"}
-        gl_object = Project(self.gl, data=data)
-        data = gl_object._getListOrObject(Project, id=data)
+        data = Project._getListOrObject(self.gl, id=data)
         self.assertEqual(type(data), Project)
         self.assertEqual(data.name, "name")
 
