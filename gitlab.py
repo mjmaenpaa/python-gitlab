@@ -280,7 +280,9 @@ class Gitlab(object):
             for key in ['page', 'per_page']:
                 if key in cls_kwargs:
                     del cls_kwargs[key]
-            
+            # Add created manually, because we are not creating objects
+            # through normal path
+            cls_kwargs['_created'] = True
             return [cls(self, item, **cls_kwargs) for item in r.json() if item is not None]
         else:
             self._raiseErrorFromResponse(r, GitlabGetError)
@@ -544,6 +546,7 @@ class GitlabObject(object):
     canCreate = True
     canUpdate = True
     canDelete = True
+    getListWhenNoId = True
     requiredUrlAttrs = []
     requiredListAttrs = []
     requiredGetAttrs = []
@@ -576,11 +579,14 @@ class GitlabObject(object):
 
     @classmethod
     def _getListOrObject(cls, gl, id, **kwargs):
-        if id is None:
+        if id is None and cls.getListWhenNoId:
             if not cls.canList:
                 raise NotImplementedError
             return cls.list(gl, **kwargs)
-
+        elif id is None and not cls.getListWhenNoId:
+            if not cls.canGet:
+                raise NotImplementedError
+            return cls(self.gitlab, id, **kwargs)
         elif isinstance(id, dict):
             if not cls.canCreate:
                 raise NotImplementedError
@@ -614,6 +620,7 @@ class GitlabObject(object):
 
         json = self.gitlab.create(self, **kwargs)
         self._setFromDict(json)
+        self._created = True
 
     def _update(self, **kwargs):
         if not self.canUpdate:
@@ -623,7 +630,7 @@ class GitlabObject(object):
         self._setFromDict(json)
 
     def save(self, **kwargs):
-        if hasattr(self, 'id'):
+        if self._created:
             self._update(**kwargs)
         else:
             self._create(**kwargs)
@@ -632,22 +639,29 @@ class GitlabObject(object):
         if not self.canDelete:
             raise NotImplementedError
 
-        if not hasattr(self, 'id'):
+        if not self._created:
             raise GitlabDeleteError("Object not yet created")
 
         return self.gitlab.delete(self, **kwargs)
 
     def __init__(self, gl, data=None, **kwargs):
+        self._created = False
         self.gitlab = gl
 
         if data is None or type(data) in chain((int,), str_types):
             data = self.gitlab.get(self.__class__, data, **kwargs)
+            self._created = True
 
         self._setFromDict(data)
 
         if kwargs:
             for k, v in kwargs.items():
                 self.__dict__[k] = v
+
+        # Special handling for api-objects that don't have id-number in api
+        # calls. Currently only Labels and Files
+        if not hasattr(self, "id"):
+            self.id = None
 
     def __str__(self):
         return '%s => %s' % (type(self), str(self.__dict__))
