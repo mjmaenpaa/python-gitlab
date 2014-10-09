@@ -278,7 +278,7 @@ class Gitlab(object):
             
             # Remove parameters from kwargs before passing it to constructor
             cls_kwargs = kwargs.copy()
-            for key in ['page', 'per_page']:
+            for key in ['page', 'per_page', 'sudo']:
                 if key in cls_kwargs:
                     del cls_kwargs[key]
             # Add created manually, because we are not creating objects
