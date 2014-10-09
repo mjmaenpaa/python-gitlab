@@ -379,6 +379,14 @@ class TestGitLab(TestCase):
                          email="testuser@test.com", password="testpassword",
                          ssl_verify=True)
 
+    def test_constructUrl_with_id(self):
+        url = self.gl.constructUrl(2, ProjectSnippet, {"project_id": 3})
+        self.assertEqual(url, "http://localhost/api/v3/projects/3/snippets/2")
+
+    def test_constructUrl_without_id(self):
+        url = self.gl.constructUrl(None, ProjectSnippet, {"project_id": 3})
+        self.assertEqual(url, "http://localhost/api/v3/projects/3/snippets")
+
     def test_setUrl(self):
         self.gl.setUrl("http://new_url")
         self.assertEqual(self.gl._url, "http://new_url/api/v3")
