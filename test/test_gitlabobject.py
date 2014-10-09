@@ -252,7 +252,7 @@ class TestGitLabObject(TestCase):
                                   "password": "password", "id": 1,
                                   "username": "username"})
         self.assertEqual(obj.name, "testname")
-        obj.created = True
+        obj._created = True
         obj.name = "newname"
         with HTTMock(resp_update_user):
             obj.save()
@@ -266,7 +266,7 @@ class TestGitLabObject(TestCase):
 
     def test_delete(self):
         obj = Group(self.gl, data={"name": "testname", "id": 1,
-                                   "created": True})
+                                   "_created": True})
         with HTTMock(resp_delete_group):
             data = obj.delete()
             self.assertIs(data, True)
