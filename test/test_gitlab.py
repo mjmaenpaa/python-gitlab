@@ -498,7 +498,7 @@ class TestGitLab(TestCase):
             return response(200, content, headers, None, 5, request)
 
         with HTTMock(resp_get_userproject):
-            self.assertRaises(GitlabGetError, self.gl.UserProject, id=1,
+            self.assertRaises(NotImplementedError, self.gl.UserProject, id=1,
                               user_id=2)
 
     def test_Group(self):
@@ -525,7 +525,7 @@ class TestGitLab(TestCase):
             return response(200, content, headers, None, 5, request)
 
         with HTTMock(resp_get_issue):
-            self.assertRaises(GitlabGetError, self.gl.Issue, id=1)
+            self.assertRaises(NotImplementedError, self.gl.Issue, id=1)
 
     def test_User(self):
         @urlmatch(scheme="http", netloc="localhost", path="/api/v3/users/1",
