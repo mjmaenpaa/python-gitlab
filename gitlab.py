@@ -991,6 +991,29 @@ class ProjectMilestone(GitlabObject):
     shortPrintAttr = 'title'
 
 
+class ProjectLabel(GitlabObject):
+    _url = '/projects/%(project_id)s/labels'
+    requiredUrlAttrs = ['project_id']
+    requiredDeleteAttrs = ['name']
+    requiredCreateAttrs = ['name', 'color']
+    # FIXME: new_name is only valid with update
+    optionalCreateAttrs = ['new_name']
+    shortPrintAttr = 'name'
+
+
+class ProjectFile(GitlabObject):
+    _url = '/projects/%(project_id)s/repository/files'
+    canList = False
+    requiredUrlAttrs = ['project_id']
+    requiredGetAttrs = ['file_path', 'ref']
+    requiredCreateAttrs = ['file_path', 'branch_name', 'content',
+                           'commit_message']
+    optionalCreateAttrs = ['encoding']
+    requiredDeleteAttrs = ['branch_name', 'commit_message']
+    getListWhenNoId = False
+    shortPrintAttr = 'name'
+
+
 class ProjectSnippetNote(GitlabObject):
     _url = '/projects/%(project_id)s/snippets/%(snippet_id)s/notes'
     _constructorTypes = {'author': 'User'}
@@ -1107,6 +1130,16 @@ class Project(GitlabObject):
         return ProjectSnippet._getListOrObject(self.gitlab, id,
                                                project_id=self.id,
                                                **kwargs)
+
+    def Label(self, id=None, **kwargs):
+        return self._getListOrObject(ProjectLabel, id,
+                                     project_id=self.id,
+                                     **kwargs)
+
+    def File(self, id=None, **kwargs):
+        return self._getListOrObject(ProjectFile, id,
+                                     project_id=self.id,
+                                     **kwargs)
 
     def Tag(self, id=None, **kwargs):
         return ProjectTag._getListOrObject(self.gitlab, id,
