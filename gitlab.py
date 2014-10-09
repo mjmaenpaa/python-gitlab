@@ -1199,6 +1199,31 @@ class Project(GitlabObject):
         if r.status_code != 200:
             self.gitlab._raiseErrorFromResponse(r, GitlabDeleteError)
 
+    def create_forked_from(self, forked_from_id, **kwargs):
+        """ Create a forked from/to relation between existing projects. """
+        url = "/projects/%s/fork/%s" % (self.id, forked_from_id,)
+        r = self.gitlab.rawPost(url, **kwargs)
+        if r.status_code == 201:
+            return r.json()
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabCreateError)
+
+    def delete_forked_from(self, **kwargs):
+        """ Delete an existing forked from relationship """
+        url = "/projects/%s/fork" % (self.id,)
+        r = self.gitlab.rawDelete(url, **kwargs)
+        if r.status_code == 200:
+            return r.json()
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabDeleteError)
+
+    def fork(self, **kwargs):
+        """ Forks project to namespace of authenticated user """
+        url = "/projects/fork/%s" % (self.id,)
+        r = self.gitlab.rawPost(url, **kwargs)
+        if r.status_code != 201:
+            self.gitlab._raiseErrorFromResponse(r, GitlabCreateError)
+
 
 class TeamMember(GitlabObject):
     _url = '/user_teams/%(team_id)s/members'
