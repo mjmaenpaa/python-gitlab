@@ -35,40 +35,54 @@ class jsonEncoder(json.JSONEncoder):
             return {'url': obj._url}
         return json.JSONEncoder.default(self, obj)
 
+class GitlabError(Exception):
+    def __init__(self, message="", response_code=None, response_body=None):
+        Exception.__init__(self, message)
+        self.response_code = response_code
+        self.response_body = response_body
+        self.message = message
 
-class GitlabConnectionError(Exception):
+
+class GitlabHttpMethodError(GitlabError):
+    def __str__(self):
+        if self.response_code:
+            return "{0:d}: {1:s}".format(self.response_code, self.message)
+        else:
+            return self.message
+
+
+class GitlabConnectionError(GitlabError):
     pass
 
 
-class GitlabListError(Exception):
+class GitlabListError(GitlabError):
     pass
 
 
-class GitlabGetError(Exception):
+class GitlabGetError(GitlabHttpMethodError):
+    pass
+
+class GitlabCreateError(GitlabHttpMethodError):
     pass
 
 
-class GitlabCreateError(Exception):
+class GitlabUpdateError(GitlabHttpMethodError):
     pass
 
 
-class GitlabUpdateError(Exception):
+class GitlabDeleteError(GitlabHttpMethodError):
     pass
 
 
-class GitlabDeleteError(Exception):
+class GitlabProtectError(GitlabError):
     pass
 
 
-class GitlabProtectError(Exception):
+class GitlabTransferProjectError(GitlabError):
     pass
 
 
-class GitlabTransferProjectError(Exception):
-    pass
-
-
-class GitlabAuthenticationError(Exception):
+class GitlabAuthenticationError(GitlabError):
     pass
 
 
@@ -91,6 +105,18 @@ class Gitlab(object):
         # Gitlab should handle UTF-8
         self.gitlab_encoding = 'UTF-8'
 
+    def _raiseErrorFromResponse(self, response, error):
+        try:
+            message = response.json()['message']
+        except (KeyError, ValueError):
+            message = response.content
+        if response.status_code == 401:
+            error = GitlabAuthenticationError
+
+        raise error(message=message,
+                    response_code=response.status_code,
+                    response_body=response.content)
+
     def auth(self):
         """Performs an authentication using either the private token, or the
         email/password pair.
@@ -111,7 +137,7 @@ class Gitlab(object):
         if r.status_code == 201:
             self.user = CurrentUser(self, r.json())
         else:
-            raise GitlabAuthenticationError(r.json()['message'])
+            self._raiseErrorFromResponse(r, GitlabAuthenticationError)
 
         self.setToken(self.user.private_token)
 
@@ -212,10 +238,8 @@ class Gitlab(object):
                     del cls_kwargs[key]
             
             return [cls(self, item, **cls_kwargs) for item in r.json() if item is not None]
-        elif r.status_code == 401:
-            raise GitlabAuthenticationError(r.json()['message'])
         else:
-            raise GitlabGetError('%d: %s' % (r.status_code, r.text))
+            self._raiseErrorFromResponse(r, GitlabGetError)
 
     def get(self, obj_class, id=None, **kwargs):
         missing = []
@@ -223,7 +247,7 @@ class Gitlab(object):
             if k not in kwargs:
                 missing.append(k)
         if missing:
-            raise GitlabListError('Missing attribute(s): %s' %
+            raise GitlabGetError('Missing attribute(s): %s' %
                                   ", ".join(missing))
 
         url = obj_class._url % _sanitize_dict(kwargs)
@@ -240,12 +264,8 @@ class Gitlab(object):
 
         if r.status_code == 200:
             return r.json()
-        elif r.status_code == 401:
-            raise GitlabAuthenticationError(r.json()['message'])
-        elif r.status_code == 404:
-            raise GitlabGetError("Object doesn't exist")
         else:
-            raise GitlabGetError('%d: %s' % (r.status_code, r.text))
+            self._raiseErrorFromResponse(r, GitlabGetError)
 
     def delete(self, obj):
         args = _sanitize_dict(obj.__dict__)
@@ -262,11 +282,8 @@ class Gitlab(object):
 
         if r.status_code == 200:
             return True
-        elif r.status_code == 401:
-            raise GitlabAuthenticationError(r.json()['message'])
         else:
-            raise GitlabDeleteError(r.json()['message'])
-        return False
+            self._raiseErrorFromResponse(r, GitlabDeleteError)
 
     def create(self, obj):
         missing = []
@@ -295,10 +312,8 @@ class Gitlab(object):
 
         if r.status_code == 201:
             return r.json()
-        elif r.status_code == 401:
-            raise GitlabAuthenticationError(r.json()['message'])
         else:
-            raise GitlabCreateError('%d: %s' % (r.status_code, r.text))
+            self._raiseErrorFromResponse(r, GitlabCreateError)
 
     def update(self, obj):
         args = _sanitize_dict(obj.__dict__)
@@ -325,10 +340,8 @@ class Gitlab(object):
 
         if r.status_code == 200:
             return r.json()
-        elif r.status_code == 401:
-            raise GitlabAuthenticationError(r.json()['message'])
         else:
-            raise GitlabUpdateError('%d: %s' % (r.status_code, r.text))
+            self._raiseErrorFromResponse(r, GitlabUpdateError)
 
     def Hook(self, id=None, **kwargs):
         """Creates/tests/lists system hook(s) known by the GitLab server.
@@ -367,7 +380,7 @@ class Gitlab(object):
     def _list_projects(self, url, **kwargs):
         r = self.rawGet(url, **kwargs)
         if r.status_code != 200:
-            raise GitlabListError
+            self._raiseErrorFromResponse(r, GitlabListError)
 
         l = []
         for o in r.json():
@@ -495,17 +508,17 @@ class GitlabObject(object):
     def _getListOrObject(cls, gl, id, **kwargs):
         if id is None:
             if not cls.canList:
-                raise GitlabGetError
+                raise GitlabGetError("Operation 'list' not allowed for class %s" % cls.__name__)
             return cls.list(gl, **kwargs)
 
         elif isinstance(id, dict):
             if not cls.canCreate:
-                raise GitlabCreateError
+                raise GitlabCreateError("Operation 'create' not allowed for class %s" % cls.__name__)
             return cls(gl, id, **kwargs)
 
         else:
             if not cls.canGet:
-                raise GitlabGetError
+                raise GitlabGetError("Operation 'get' not allowed for class %s" % cls.__name__)
             return cls(gl, id, **kwargs)
 
     def _getObject(self, k, v):
@@ -550,7 +563,7 @@ class GitlabObject(object):
             raise NotImplementedError
 
         if not hasattr(self, 'id'):
-            raise GitlabDeleteError
+            raise GitlabDeleteError("Object not yet created")
 
         return self.gitlab.delete(self)
 
@@ -694,7 +707,7 @@ class Group(GitlabObject):
         url = '/groups/%d/projects/%d' % (self.id, id)
         r = self.gitlab.rawPost(url, None)
         if r.status_code != 201:
-            raise GitlabTransferProjectError()
+            self.gitlab._raiseErrorFromResponse(r, GitlabTransferProjectError)
 
 
 class Hook(GitlabObject):
@@ -727,7 +740,7 @@ class ProjectBranch(GitlabObject):
 
     def protect(self, protect=True):
         if not protect and not hasattr(self, "protected"):
-            raise GitlabProtectError
+            raise GitlabProtectError("Can't unprotect already unprotected branch")
 
         url = self._url % {'project_id': self.project_id}
         action = 'protect' if protect else 'unprotect'
@@ -740,7 +753,7 @@ class ProjectBranch(GitlabObject):
             else:
                 del self.protected
         else:
-            raise GitlabProtectError
+            self.gitlab._raiseErrorFromResponse(r, GitlabProtectError)
 
     def unprotect(self):
         self.protect(False)
@@ -760,8 +773,8 @@ class ProjectCommit(GitlabObject):
         r = self.gitlab.rawGet(url)
         if r.status_code == 200:
             return r.json()
-
-        raise GitlabGetError
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabGetError)
 
     def blob(self, filepath):
         url = '/projects/%(project_id)s/repository/blobs/%(commit_id)s' % \
@@ -770,8 +783,8 @@ class ProjectCommit(GitlabObject):
         r = self.gitlab.rawGet(url)
         if r.status_code == 200:
             return r.content
-
-        raise GitlabGetError
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabGetError)
 
 
 class ProjectKey(GitlabObject):
@@ -923,7 +936,7 @@ class ProjectSnippet(GitlabObject):
         if r.status_code == 200:
             return r.content
         else:
-            raise GitlabGetError
+            self.gitlab._raiseErrorFromResponse(r, GitlabGetError)
 
     def Note(self, id=None, **kwargs):
         return ProjectSnippetNote._getListOrObject(self.gitlab, id,
@@ -1024,8 +1037,8 @@ class Project(GitlabObject):
         r = self.gitlab.rawGet(url)
         if r.status_code == 200:
             return r.json()
-
-        raise GitlabGetError
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabGetError)
 
     def blob(self, sha, filepath):
         url = "%s/%s/repository/blobs/%s" % (self._url, self.id, sha)
@@ -1033,8 +1046,8 @@ class Project(GitlabObject):
         r = self.gitlab.rawGet(url)
         if r.status_code == 200:
             return r.content
-
-        raise GitlabGetError
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabGetError)
 
     def archive(self, sha=None):
         url = '/projects/%s/repository/archive' % self.id
@@ -1043,8 +1056,8 @@ class Project(GitlabObject):
         r = self.gitlab.rawGet(url)
         if r.status_code == 200:
             return r.content
-
-        raise GitlabGetError
+        else:
+            self.gitlab._raiseErrorFromResponse(r, GitlabGetError)
 
     def create_file(self, path, branch, content, message):
         url = "/projects/%s/repository/files" % self.id
@@ -1052,7 +1065,7 @@ class Project(GitlabObject):
             (path, branch, content, message)
         r = self.gitlab.rawPost(url)
         if r.status_code != 201:
-            raise GitlabCreateError
+            self.gitlab._raiseErrorFromResponse(r, GitlabCreateError)
 
     def update_file(self, path, branch, content, message):
         url = "/projects/%s/repository/files" % self.id
@@ -1060,7 +1073,7 @@ class Project(GitlabObject):
             (path, branch, content, message)
         r = self.gitlab.rawPut(url)
         if r.status_code != 200:
-            raise GitlabUpdateError
+            self.gitlab._raiseErrorFromResponse(r, GitlabUpdateError)
 
     def delete_file(self, path, branch, message):
         url = "/projects/%s/repository/files" % self.id
@@ -1068,7 +1081,7 @@ class Project(GitlabObject):
             (path, branch, message)
         r = self.gitlab.rawDelete(url)
         if r.status_code != 200:
-            raise GitlabDeleteError
+            self.gitlab._raiseErrorFromResponse(r, GitlabDeleteError)
 
 
 class TeamMember(GitlabObject):
