@@ -32,6 +32,8 @@ from gitlab import Gitlab, GitlabConnectionError, GitlabAuthenticationError,\
 
 from httmock import response, HTTMock, urlmatch
 
+import json
+
 @urlmatch(scheme="http", netloc="localhost", path="/api/v3/projects/1",
           method="get")
 def resp_get_project(url, request):
@@ -133,6 +135,27 @@ class TestGitLabObject(TestCase):
         self.gl = Gitlab("http://localhost", private_token="private_token",
                          email="testuser@test.com", password="testpassword",
                          ssl_verify=True)
+
+    def test_jsonForGitlab(self):
+        data_before = {"name": "testname", "wiki_enabled": True}
+        obj = Project(self.gl, data=data_before)
+        json_str = obj.jsonForGitlab()
+        self.assertEqual(type(json_str), str)
+        data_after = json.loads(json_str)
+        self.assertDictEqual(data_before, data_after)
+
+    def test_jsonForGitlab_extra(self):
+        data_before = {"name": "testname",
+                       "wiki_enabled": True,
+                       "visibility_level": 1}
+        obj = Project(self.gl, data=data_before)
+        extra_parameters = {"extra_parameter": "extra_parameter_value"}
+        data_before.update(extra_parameters)
+        json_str = obj.jsonForGitlab(extra_parameters=extra_parameters)
+        self.assertEqual(type(json_str), str)
+        data_after = json.loads(json_str)
+        self.assertDictEqual(data_before, data_after)
+
 
     def test_list_not_implemented(self):
         self.assertRaises(NotImplementedError, CurrentUser.list, self.gl)
