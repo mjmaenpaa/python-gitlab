@@ -726,6 +726,9 @@ class ProjectBranch(GitlabObject):
     _constructorTypes = {'commit': 'ProjectCommit'}
 
     def protect(self, protect=True):
+        if not protect and not hasattr(self, "protected"):
+            raise GitlabProtectError
+
         url = self._url % {'project_id': self.project_id}
         action = 'protect' if protect else 'unprotect'
         url = "%s/%s/%s" % (url, self.name, action)
