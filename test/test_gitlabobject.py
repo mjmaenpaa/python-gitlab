@@ -318,8 +318,7 @@ class TestProjectBranch(TestCase):
     def test_protect_unprotect_again(self):
         self.assertRaises(AttributeError, getattr, self.obj, 'protected')
         with HTTMock(resp_unprotect_branch):
-            self.obj.protect(False)
-            self.assertRaises(AttributeError, getattr, sef.obj, 'protected')
+            self.assertRaises(GitlabProtectError, self.obj.protect, False)
 
     def test_protect_protect_fail(self):
         with HTTMock(resp_protect_branch_fail):
