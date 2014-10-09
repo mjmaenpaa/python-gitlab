@@ -508,17 +508,17 @@ class GitlabObject(object):
     def _getListOrObject(cls, gl, id, **kwargs):
         if id is None:
             if not cls.canList:
-                raise GitlabGetError("Operation 'list' not allowed for class %s" % cls.__name__)
+                raise NotImplementedError
             return cls.list(gl, **kwargs)
 
         elif isinstance(id, dict):
             if not cls.canCreate:
-                raise GitlabCreateError("Operation 'create' not allowed for class %s" % cls.__name__)
+                raise NotImplementedError
             return cls(gl, id, **kwargs)
 
         else:
             if not cls.canGet:
-                raise GitlabGetError("Operation 'get' not allowed for class %s" % cls.__name__)
+                raise NotImplementedError
             return cls(gl, id, **kwargs)
 
     def _getObject(self, k, v):
