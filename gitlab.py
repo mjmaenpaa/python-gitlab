@@ -113,6 +113,9 @@ class Gitlab(object):
         """
         self._url = '%s/api/v3' % url
         self.timeout = timeout
+        # When we are sending something, we are sending json, so set
+        # content-type to json for all requests
+        self.headers = { "Content-type": "application/json" }
         self.setToken(private_token)
         self.email = email
         self.password = password
@@ -175,7 +178,10 @@ class Gitlab(object):
     def setToken(self, token):
         """Sets the private token for authentication"""
         self.private_token = token if token else None
-        self.headers = {"PRIVATE-TOKEN": token} if token else None
+        if token:
+            self.headers["PRIVATE-TOKEN"] = token
+        elif "PRIVATE-TOKEN" in self.headers:
+            del self.headers["PRIVATE-TOKEN"]
 
     def setCredentials(self, email, password):
         """Sets the email/login and password for authentication"""
@@ -319,13 +325,10 @@ class Gitlab(object):
                                     ", ".join(missing))
 
         url = self.constructUrl(id_=None, obj=obj, parameters=obj.__dict__)
-
-        for k, v in obj.__dict__.items():
-            if type(v) == bool:
-                obj.__dict__[k] = 1 if v else 0
+        data = obj.jsonForGitlab()
 
         try:
-            r = requests.post(url, obj.__dict__,
+            r = requests.post(url, data=data,
                               headers=self.headers,
                               verify=self.ssl_verify,
                               timeout=self.timeout)
@@ -341,18 +344,11 @@ class Gitlab(object):
     def update(self, obj):
         url = self.constructUrl(id_=obj.id, obj=obj, parameters=obj.__dict__)
 
-        # build a dict of data that can really be sent to server
-        d = {}
-        for k, v in obj.__dict__.items():
-            if type(v) in (int, str):
-                d[k] = str(v)
-            elif type(v) == bool:
-                d[k] = 1 if v else 0
-            elif PY2 and type(v) == unicode:
-                d[k] = str(v.encode(self.gitlab_encoding, "replace"))
+        # build data that can really be sent to server
+        data = obj.jsonForGitlab()
 
         try:
-            r = requests.put(url, d,
+            r = requests.put(url, data=data,
                              headers=self.headers,
                              verify=self.ssl_verify,
                              timeout=self.timeout)
@@ -515,6 +511,17 @@ class GitlabObject(object):
     optionalCreateAttrs = []
     idAttr = 'id'
     shortPrintAttr = None
+
+    def jsonForGitlab(self, extra_parameters={}):
+        data = {}
+        for attribute in chain(self.requiredCreateAttrs,
+                               self.optionalCreateAttrs):
+            if hasattr(self, attribute):
+                data[attribute] = getattr(self,attribute)
+
+        data.update(extra_parameters)
+
+        return json.dumps(data)
 
     @classmethod
     def list(cls, gl, **kwargs):
