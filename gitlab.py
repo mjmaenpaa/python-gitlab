@@ -113,9 +113,7 @@ class Gitlab(object):
         """
         self._url = '%s/api/v3' % url
         self.timeout = timeout
-        # When we are sending something, we are sending json, so set
-        # content-type to json for all requests
-        self.headers = { "Content-type": "application/json" }
+        self.headers = {}
         self.setToken(private_token)
         self.email = email
         self.password = password
@@ -175,6 +173,13 @@ class Gitlab(object):
             url = '%s%s' % (self._url, url)
         return url
 
+    def createHeaders(self, content_type=None, headers={} ):
+        request_headers = self.headers.copy()
+        request_headers.update(headers)
+        if content_type is not None:
+            request_headers['Content-type'] = content_type
+        return request_headers
+
     def setToken(self, token):
         """Sets the private token for authentication"""
         self.private_token = token if token else None
@@ -188,49 +193,51 @@ class Gitlab(object):
         self.email = email
         self.password = password
 
-    def rawGet(self, path, **kwargs):
+    def rawGet(self, path, content_type=None, **kwargs):
         url = '%s%s' % (self._url, path)
+        headers = self.createHeaders(content_type)
 
         try:
             return requests.get(url,
                                 params=kwargs,
-                                headers=self.headers,
+                                headers=headers,
                                 verify=self.ssl_verify,
                                 timeout=self.timeout)
         except:
             raise GitlabConnectionError(
                 "Can't connect to GitLab server (%s)" % self._url)
 
-    def rawPost(self, path, data=None, **kwargs):
+    def rawPost(self, path, data=None, content_type=None, **kwargs):
         url = '%s%s' % (self._url, path)
+        headers = self.createHeaders(content_type)
         try:
             return requests.post(url, params=kwargs, data=data,
-                                 headers=self.headers,
+                                 headers=headers,
                                  verify=self.ssl_verify,
                                  timeout=self.timeout)
         except:
             raise GitlabConnectionError(
                 "Can't connect to GitLab server (%s)" % self._url)
 
-    def rawPut(self, path, **kwargs):
+    def rawPut(self, path, content_type=None, **kwargs):
         url = '%s%s' % (self._url, path)
-
+        headers = self.createHeaders(content_type)
         try:
             return requests.put(url, params=kwargs,
-                                headers=self.headers,
+                                headers=headers,
                                 verify=self.ssl_verify,
                                 timeout=self.timeout)
         except:
             raise GitlabConnectionError(
                 "Can't connect to GitLab server (%s)" % self._url)
 
-    def rawDelete(self, path, **kwargs):
+    def rawDelete(self, path, content_type=None, **kwargs):
         url = '%s%s' % (self._url, path)
-
+        headers = self.createHeaders(content_type)
         try:
             return requests.delete(url,
                                    params=kwargs,
-                                   headers=self.headers,
+                                   headers=headers,
                                    verify=self.ssl_verify,
                                    timeout=self.timeout)
         except:
@@ -247,8 +254,9 @@ class Gitlab(object):
                                   ", ".join(missing))
 
         url = self.constructUrl(id_=None, obj=obj_class, parameters=kwargs)
+        headers = self.createHeaders()
         try:
-            r = requests.get(url, params=kwargs, headers=self.headers,
+            r = requests.get(url, params=kwargs, headers=headers,
                              verify=self.ssl_verify,
                              timeout=self.timeout)
         except:
@@ -280,10 +288,10 @@ class Gitlab(object):
                                   ", ".join(missing))
 
         url = self.constructUrl(id_=id, obj=obj_class, parameters=kwargs)
-
+        headers = self.createHeaders()
         try:
             r = requests.get(url, params=kwargs,
-                             headers=self.headers,
+                             headers=headers,
                              verify=self.ssl_verify,
                              timeout=self.timeout)
         except:
@@ -297,11 +305,11 @@ class Gitlab(object):
 
     def delete(self, obj, **kwargs):
         url = self.constructUrl(id_=obj.id, obj=obj, parameters=obj.__dict__)
-
+        headers = self.createHeaders()
         try:
             r = requests.delete(url,
                                 params=kwargs,
-                                headers=self.headers,
+                                headers=headers,
                                 verify=self.ssl_verify,
                                 timeout=self.timeout)
         except:
@@ -325,13 +333,13 @@ class Gitlab(object):
                                     ", ".join(missing))
 
         url = self.constructUrl(id_=None, obj=obj, parameters=params)
-
+        headers = self.createHeaders(content_type="application/json")
         # build data that can really be sent to server
         data = obj.jsonForGitlab(extra_parameters=kwargs)
 
         try:
             r = requests.post(url, data=data,
-                              headers=self.headers,
+                              headers=headers,
                               verify=self.ssl_verify,
                               timeout=self.timeout)
         except:
@@ -355,13 +363,13 @@ class Gitlab(object):
                                     ", ".join(missing))
         
         url = self.constructUrl(id_=obj.id, obj=obj, parameters=params)
-
+        headers = self.createHeaders(content_type="application/json")
         # build data that can really be sent to server
         data = obj.jsonForGitlab(extra_parameters=kwargs)
 
         try:
             r = requests.put(url, data=data,
-                             headers=self.headers,
+                             headers=headers,
                              verify=self.ssl_verify,
                              timeout=self.timeout)
         except:
